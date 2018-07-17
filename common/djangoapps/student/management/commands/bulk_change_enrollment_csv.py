@@ -11,8 +11,7 @@ from django.db import transaction
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
 
-from student.models import CourseEnrollment, User
-from student.models import CourseEnrollmentAttribute
+from student.models import CourseEnrollment, CourseEnrollmentAttribute, User
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -21,15 +20,15 @@ class Command(BaseCommand):
     """
         Management command to change many user enrollments in many
         courses using the csv file
-        """
+    """
 
     help = """
         Change the enrollment status of all the users specified in
         the csv file in the specified course to specified course
         mode.
-        Could be used to update Effected users by order
-        placement issues. If number of students is a lot for the
-        different courses.
+        Could be used to update effected users by order
+        placement issues. If large number of students are effected
+        in different courses.
         Similar to bulk_change_enrollment but uses the csv file
         input format and can enroll students in multiple courses.
 
@@ -66,25 +65,35 @@ class Command(BaseCommand):
                     raise CommandError('Invalid or non-existant user {}'.format(row['user']))
 
                 try:
-                    # Student might be or not enrolled in course
-                    course_enrollment = CourseEnrollment.get_or_create_enrollment(user=user, course_key=course_key)
-
-                    if course_enrollment.mode == row['mode']:
+                    course_enrollment = CourseEnrollment.get_enrollment(user, course_key)
+                    #  If student is not enrolled in course enroll the student in free mode
+                    if not course_enrollment:
+                        # try to create a enroll user in default course enrollment mode in case of
+                        # professional it will break because of no default course mode.
+                        try:
+                            course_enrollment = CourseEnrollment.get_or_create_enrollment(user=user,
+                                                                                          course_key=course_key)
+                        except Exception:  # pylint: disable=broad-except
+                            # In case if no free mode is available.
+                            course_enrollment = None
+                    # if student already had a enrollment and its mode is same as the provided one
+                    if course_enrollment and course_enrollment.mode == row['mode']:
                         logger.info("Student [%s] is already enrolled in Course [%s] in mode [%s].", user.username,
                                     course_key, course_enrollment.mode)
                         # set the enrollment to active if its not already active.
                         if not course_enrollment.is_active:
                             course_enrollment.is_active = True
                         course_enrollment.save()
-                    else:
+                    elif course_enrollment:
+                        # if student enrollment exists update it to new mode.
                         with transaction.atomic():
-                            enrollment_attrs = []
                             course_enrollment.update_enrollment(
                                 mode=row['mode'],
                                 is_active=True,
                                 skip_refund=True
                             )
                             course_enrollment.save()
+                            enrollment_attrs = []
                             if row['mode'] == 'credit':
                                 enrollment_attrs.append({
                                     'namespace': 'credit',
@@ -93,6 +102,10 @@ class Command(BaseCommand):
                                 })
                                 CourseEnrollmentAttribute.add_enrollment_attr(enrollment=course_enrollment,
                                                                               data_list=enrollment_attrs)
+                    else:
+                        # if student enrollment do not exists directly enroll in new mode.
+                        CourseEnrollment.enroll(user=user, course_key=course_key, mode=row['mode'])
+
                 except Exception as e:
-                    logger.info("Unable to Update student [%s] course [%s] enrollment to mode [%s] "
+                    logger.info("Unable to update student [%s] course [%s] enrollment to mode [%s] "
                                 "because of Exception [%s]", user.username, course_key, row['mode'], repr(e))
