@@ -26,13 +26,13 @@ class Command(BaseCommand):
     help = """
         Change the enrollment status of all the users specified in
         the csv file in the specified course to specified course
-        mode. 
+        mode.
         Could be used to update Effected users by order
         placement issues. If number of students is a lot for the
         different courses.
-        Similar to bulk_change_enrollment but uses the csv file 
+        Similar to bulk_change_enrollment but uses the csv file
         input format and can enroll students in multiple courses.
-        
+
         Example:
             $ ... bulk_change_enrollment_csv csv_file_path
         """
