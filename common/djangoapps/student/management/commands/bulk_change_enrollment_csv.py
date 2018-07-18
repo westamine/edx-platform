@@ -51,8 +51,8 @@ class Command(BaseCommand):
         if not path.isfile(file_path):
             raise CommandError("File not found.")
 
-        with open(file_path, 'rb') as file:
-            file_reader = csv.DictReader(file)
+        with open(file_path, 'rb') as csv_file:
+            file_reader = csv.DictReader(csv_file)
             for row in file_reader:
                 try:
                     course_key = CourseKey.from_string(row['course_id'])
@@ -76,32 +76,34 @@ class Command(BaseCommand):
                         except Exception:  # pylint: disable=broad-except
                             # In case if no free mode is available.
                             course_enrollment = None
-                    # if student already had a enrollment and its mode is same as the provided one
-                    if course_enrollment and course_enrollment.mode == row['mode']:
-                        logger.info("Student [%s] is already enrolled in Course [%s] in mode [%s].", user.username,
-                                    course_key, course_enrollment.mode)
-                        # set the enrollment to active if its not already active.
-                        if not course_enrollment.is_active:
-                            course_enrollment.is_active = True
-                        course_enrollment.save()
-                    elif course_enrollment:
-                        # if student enrollment exists update it to new mode.
-                        with transaction.atomic():
-                            course_enrollment.update_enrollment(
-                                mode=row['mode'],
-                                is_active=True,
-                                skip_refund=True
-                            )
+
+                    if course_enrollment:
+                        # if student already had a enrollment and its mode is same as the provided one
+                        if course_enrollment.mode == row['mode']:
+                            logger.info("Student [%s] is already enrolled in Course [%s] in mode [%s].", user.username,
+                                        course_key, course_enrollment.mode)
+                            # set the enrollment to active if its not already active.
+                            if not course_enrollment.is_active:
+                                course_enrollment.is_active = True
                             course_enrollment.save()
-                            enrollment_attrs = []
-                            if row['mode'] == 'credit':
-                                enrollment_attrs.append({
-                                    'namespace': 'credit',
-                                    'name': 'provider_id',
-                                    'value': course_key.org,
-                                })
-                                CourseEnrollmentAttribute.add_enrollment_attr(enrollment=course_enrollment,
-                                                                              data_list=enrollment_attrs)
+                        else:
+                            # if student enrollment exists update it to new mode.
+                            with transaction.atomic():
+                                course_enrollment.update_enrollment(
+                                    mode=row['mode'],
+                                    is_active=True,
+                                    skip_refund=True
+                                )
+                                course_enrollment.save()
+
+                                if row['mode'] == 'credit':
+                                    enrollment_attrs = [{
+                                        'namespace': 'credit',
+                                        'name': 'provider_id',
+                                        'value': course_key.org,
+                                    }]
+                                    CourseEnrollmentAttribute.add_enrollment_attr(enrollment=course_enrollment,
+                                                                                  data_list=enrollment_attrs)
                     else:
                         # if student enrollment do not exists directly enroll in new mode.
                         CourseEnrollment.enroll(user=user, course_key=course_key, mode=row['mode'])
