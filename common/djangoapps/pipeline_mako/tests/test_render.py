@@ -7,6 +7,7 @@ import os
 from django.conf import settings
 from django.test import TestCase
 from paver.easy import call_task
+import pytest
 
 from pipeline_mako import compressed_css, compressed_js, render_require_js_path_overrides
 
@@ -41,6 +42,7 @@ class RequireJSPathOverridesTest(TestCase):
         self.assertEqual(map(str.strip, result.splitlines()), self.OVERRIDES_JS)
 
 
+@pytest.mark.skipif(settings.ROOT_URLCONF != 'lms.urls', reason="Test only valid for LMS")
 @ddt.ddt
 class PipelineRenderTest(TestCase):
     """Test individual pipeline rendering functions. """
@@ -67,7 +69,6 @@ class PipelineRenderTest(TestCase):
         # Update all static assets.
         call_task('pavelib.assets.update_assets', args=('lms', '--settings=test', '--themes=no'))
 
-    @skipUnless(settings.ROOT_URLCONF == 'lms.urls', 'Test only valid in LMS')
     @ddt.data(
         (True,),
         (False,),
@@ -86,7 +87,6 @@ class PipelineRenderTest(TestCase):
             css_include = compressed_css('style-main-v1', raw=True)
             self.assertIn(u'lms-main-v1.css?raw', css_include)
 
-    @skipUnless(settings.ROOT_URLCONF == 'lms.urls', 'Test only valid in LMS')
     def test_compressed_js(self):
         """
         Verify the behavior of compressed_css, with the pipeline
