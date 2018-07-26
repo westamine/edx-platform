@@ -41,7 +41,7 @@ from django_comment_client.utils import (
     is_commentable_divided,
     strip_none
 )
-from django_comment_common.models import CourseDiscussionSettings
+from django_comment_common.models import CourseDiscussionSettings, FORUM_ROLE_COMMUNITY_TA
 from django_comment_common.utils import ThreadContext, get_course_discussion_settings, set_course_discussion_settings
 from openedx.core.djangoapps.plugin_api.views import EdxFragmentView
 from openedx.core.djangoapps.monitoring_utils import function_trace
@@ -149,14 +149,19 @@ def get_threads(request, course, user_info, discussion_id=None, per_page=THREADS
             )
         )
     )
-
     paginated_results = cc.Thread.search(query_params)
     threads = paginated_results.collection
 
     # If not provided with a discussion id, filter threads by commentable ids
     # which are accessible to the current user.
     if discussion_id is None:
-        discussion_category_ids = set(utils.get_discussion_categories_ids(course, request.user))
+        kwargs = {"course": course, "user": request.user}
+        is_forum_community_ta = utils.has_forum_access(
+            request.user, course.id, FORUM_ROLE_COMMUNITY_TA
+        )
+        if is_forum_community_ta:
+            kwargs["include_all"] = True
+        discussion_category_ids = set(utils.get_discussion_categories_ids(**kwargs))
         threads = [
             thread for thread in threads
             if thread.get('commentable_id') in discussion_category_ids
@@ -351,9 +356,16 @@ def _find_thread(request, course, discussion_id, thread_id):
     except cc.utils.CommentClientRequestError:
         return None
 
+    is_forum_community_ta = utils.has_forum_access(
+        request.user, course.id, FORUM_ROLE_COMMUNITY_TA
+    )
+    kwargs = {"course": course, "user": request.user, "discussion_id": discussion_id}
+    if is_forum_community_ta:
+        kwargs["include_discussion_id"] = True
+
     # Verify that the student has access to this thread if belongs to a course discussion module
     thread_context = getattr(thread, "context", "course")
-    if thread_context == "course" and not utils.discussion_category_id_access(course, request.user, discussion_id):
+    if thread_context == "course" and not utils.discussion_category_id_access(**kwargs):
         return None
 
     # verify that the thread belongs to the requesting student's group
