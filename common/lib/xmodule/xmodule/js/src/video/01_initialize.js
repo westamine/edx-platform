@@ -378,6 +378,7 @@ function(VideoPlayer, i18n, moment, _) {
                 showCaptions: isBoolean,
                 autoplay: isBoolean,
                 autohideHtml5: isBoolean,
+                hls_primary_playback_enabled: isBoolean,
                 autoAdvance: function(value) {
                     var shouldAutoAdvance = storage.getItem('auto_advance');
                     if (_.isUndefined(shouldAutoAdvance)) {
@@ -585,7 +586,7 @@ function(VideoPlayer, i18n, moment, _) {
 
         _setConfigurations(this);
 
-        if (!(_parseYouTubeIDs(this))) {
+        if (this.config.hls_primary_playback_enabled || !(_parseYouTubeIDs(this))) {
             // If we do not have YouTube ID's, try parsing HTML5 video sources.
             if (!_prepareHTML5Video(this)) {
                 __dfd__.reject();

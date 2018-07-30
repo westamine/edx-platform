@@ -4,36 +4,37 @@ Video xmodule tests in mongo.
 """
 
 import json
+import shutil
 from collections import OrderedDict
+from tempfile import mkdtemp
 from uuid import uuid4
 
-from tempfile import mkdtemp
-import shutil
 import ddt
 from django.conf import settings
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.test import TestCase
 from django.test.utils import override_settings
-from fs.osfs import OSFS
-from fs.path import combine
 from edxval.api import (
     ValCannotCreateError,
     ValVideoNotFoundError,
-    create_video_transcript,
     create_or_update_video_transcript,
     create_profile,
     create_video,
+    create_video_transcript,
     get_video_info,
     get_video_transcript,
     get_video_transcript_data
 )
 from edxval.utils import create_file_in_fs
+from fs.osfs import OSFS
+from fs.path import combine
 from lxml import etree
 from mock import MagicMock, Mock, patch
 from nose.plugins.attrib import attr
+from openedx.core.djangoapps.waffle_utils.testutils import override_waffle_flag
 from path import Path as path
-
+from waffle.testutils import override_switch
 from xmodule.contentstore.content import StaticContent
 from xmodule.exceptions import NotFoundError
 from xmodule.modulestore import ModuleStoreEnum
@@ -43,7 +44,14 @@ from xmodule.tests.test_import import DummySystem
 from xmodule.tests.test_video import VideoDescriptorTestBase, instantiate_descriptor
 from xmodule.video_module import VideoDescriptor, bumper_utils, rewrite_video_url, video_utils
 from xmodule.video_module.transcripts_utils import Transcript, save_to_store, subs_filename
-from xmodule.video_module.video_module import EXPORT_IMPORT_STATIC_DIR, EXPORT_IMPORT_COURSE_DIR
+from xmodule.video_module.video_module import (
+    EXPORT_IMPORT_COURSE_DIR,
+    EXPORT_IMPORT_STATIC_DIR,
+    HLS_PRIMARY_PLAYBACK_ENABLED,
+    WAFFLE_VIDEOS_NAMESPACE,
+    CourseWaffleFlag,
+    WaffleFlagNamespace
+)
 from xmodule.x_module import STUDENT_VIEW
 
 from .helpers import BaseTestXmodule
@@ -54,6 +62,9 @@ MODULESTORES = {
     ModuleStoreEnum.Type.mongo: TEST_DATA_MONGO_MODULESTORE,
     ModuleStoreEnum.Type.split: TEST_DATA_SPLIT_MODULESTORE,
 }
+
+HLS_PRIMARY_PLAYBACK_ENABLED_SWITCH = '{}.{}'.format(WAFFLE_VIDEOS_NAMESPACE, HLS_PRIMARY_PLAYBACK_ENABLED)
+HLS_PRIMARY_PLAYBACK_ENABLED_FLAG = HLS_PRIMARY_PLAYBACK_ENABLED_SWITCH
 
 TRANSCRIPT_FILE_SRT_DATA = u"""
 1
@@ -96,6 +107,7 @@ class TestVideoYouTube(TestVideo):
                 'sources': sources,
                 'duration': None,
                 'poster': None,
+                'hls_primary_playback_enabled': False,
                 'captionDataDir': None,
                 'showCaptions': 'true',
                 'generalSpeed': 1.0,
@@ -177,6 +189,7 @@ class TestVideoNonYouTube(TestVideo):
                 'sources': sources,
                 'duration': None,
                 'poster': None,
+                'hls_primary_playback_enabled': False,
                 'captionDataDir': None,
                 'showCaptions': 'true',
                 'generalSpeed': 1.0,
@@ -219,6 +232,7 @@ class TestGetHtmlMethod(BaseTestXmodule):
     '''
     Make sure that `get_html` works correctly.
     '''
+    maxDiff = None
     CATEGORY = "video"
     DATA = SOURCE_XML
     METADATA = {}
@@ -234,6 +248,7 @@ class TestGetHtmlMethod(BaseTestXmodule):
             'sources': '[]',
             'duration': 111.0,
             'poster': None,
+            'hls_primary_playback_enabled': False,
             'captionDataDir': None,
             'showCaptions': 'true',
             'generalSpeed': 1.0,
@@ -985,6 +1000,65 @@ class TestGetHtmlMethod(BaseTestXmodule):
         context = self.item_descriptor.render(STUDENT_VIEW).content
 
         self.assertIn("\'poster\': \'null\'", context)
+
+    @ddt.data(
+        {
+            'hls_playback_enabled': False,
+            'hls_primary_playback_switch_enabled': True,
+            'hls_primary_playback_course_flag_enabled': True,
+            'expected_hls_primary_playback_enabled': 'false',
+        },
+        {
+            'hls_playback_enabled': True,
+            'hls_primary_playback_switch_enabled': True,
+            'hls_primary_playback_course_flag_enabled': True,
+            'expected_hls_primary_playback_enabled': 'true',
+        },
+        {
+            'hls_playback_enabled': True,
+            'hls_primary_playback_switch_enabled': False,
+            'hls_primary_playback_course_flag_enabled': True,
+            'expected_hls_primary_playback_enabled': 'true',
+        },
+        {
+            'hls_playback_enabled': True,
+            'hls_primary_playback_switch_enabled': False,
+            'hls_primary_playback_course_flag_enabled': False,
+            'expected_hls_primary_playback_enabled': 'false',
+        },
+        {
+            'hls_playback_enabled': True,
+            'hls_primary_playback_switch_enabled': True,
+            'hls_primary_playback_course_flag_enabled': False,
+            'expected_hls_primary_playback_enabled': 'true',
+        },
+    )
+    @ddt.unpack
+    def test_hls_primary_playback_on_toggling_hls_feature(
+        self,
+        hls_playback_enabled,
+        hls_primary_playback_switch_enabled,
+        hls_primary_playback_course_flag_enabled,
+        expected_hls_primary_playback_enabled,
+    ):
+        """
+        Verify that `hls_primary_playback_enabled` is set correctly.
+        """
+        with patch('xmodule.video_module.video_module.HLSPlaybackEnabledFlag.feature_enabled') as feature_enabled:
+            feature_enabled.return_value = hls_playback_enabled
+            video_xml = '<video display_name="Video" download_video="true" edx_video_id="12345-67890">[]</video>'
+            self.initialize_module(data=video_xml)
+            waffle_flag = CourseWaffleFlag(
+                WaffleFlagNamespace(name=WAFFLE_VIDEOS_NAMESPACE),
+                HLS_PRIMARY_PLAYBACK_ENABLED
+            )
+            with override_switch(HLS_PRIMARY_PLAYBACK_ENABLED_SWITCH, active=hls_primary_playback_switch_enabled), \
+                 override_waffle_flag(waffle_flag, active=hls_primary_playback_course_flag_enabled):
+                context = self.item_descriptor.render(STUDENT_VIEW).content
+                self.assertIn(
+                    '"hls_primary_playback_enabled": {}'.format(expected_hls_primary_playback_enabled),
+                    context
+                )
 
 
 @attr(shard=7)
@@ -2064,6 +2138,7 @@ class TestVideoWithBumper(TestVideo):
                 'streams': '0.75:jNCf2gIqpeE,1.00:ZwkTiUPN0mg,1.25:rsq9auxASqI,1.50:kMyNdzVHHgg',
                 'sources': sources,
                 'poster': None,
+                'hls_primary_playback_enabled': False,
                 'duration': None,
                 'captionDataDir': None,
                 'showCaptions': 'true',
@@ -2107,6 +2182,7 @@ class TestAutoAdvanceVideo(TestVideo):
     """
     Tests the server side of video auto-advance.
     """
+    maxDiff = None
     CATEGORY = "video"
     METADATA = {}
     # Use temporary FEATURES in this test without affecting the original
@@ -2136,6 +2212,7 @@ class TestAutoAdvanceVideo(TestVideo):
                 'sources': [u'example.mp4', u'example.webm'],
                 'duration': None,
                 'poster': None,
+                'hls_primary_playback_enabled': False,
                 'captionDataDir': None,
                 'showCaptions': 'true',
                 'generalSpeed': 1.0,

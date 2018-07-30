@@ -22,9 +22,11 @@ from operator import itemgetter
 from pkg_resources import resource_string
 
 from django.conf import settings
+from django.utils.functional import cached_property
 from lxml import etree
 from opaque_keys.edx.locator import AssetLocator
 from openedx.core.djangoapps.video_config.models import HLSPlaybackEnabledFlag
+from openedx.core.djangoapps.waffle_utils import WaffleSwitchNamespace, WaffleFlagNamespace, CourseWaffleFlag
 from openedx.core.lib.cache_utils import memoize_in_request_cache
 from openedx.core.lib.license import LicenseMixin
 from xblock.completable import XBlockCompletionMode
@@ -98,6 +100,12 @@ log = logging.getLogger(__name__)
 #  `django.utils.translation.ugettext_noop` because Django cannot be imported in this file
 _ = lambda text: text
 
+# Waffle switches namespace for videos
+WAFFLE_VIDEOS_NAMESPACE = 'videos'
+WAFFLE_SWITCHES = WaffleSwitchNamespace(name=WAFFLE_VIDEOS_NAMESPACE)
+
+# Waffle switch to enable/disable hls as primary playback
+HLS_PRIMARY_PLAYBACK_ENABLED = 'hls_primary_playback_enabled'
 
 EXPORT_IMPORT_COURSE_DIR = u'course'
 EXPORT_IMPORT_STATIC_DIR = u'static'
@@ -181,6 +189,28 @@ class VideoModule(VideoFields, VideoTranscriptsMixin, VideoStudentViewHandlers, 
 
         sorted_languages = OrderedDict(sorted_languages)
         return track_url, transcript_language, sorted_languages
+
+    @cached_property
+    def hls_primary_playback_enabled(self):
+        """
+        Return True if hls as primary playback enabled else False
+        """
+        hls_primary_playback = False
+
+        # if `hls` playback itself is disabled then when can't move further
+        if not HLSPlaybackEnabledFlag.feature_enabled(self.location.course_key):
+            return False
+
+        if WAFFLE_SWITCHES.is_enabled(HLS_PRIMARY_PLAYBACK_ENABLED):
+            hls_primary_playback = True
+        else:
+            waffle_flag = CourseWaffleFlag(
+                WaffleFlagNamespace(name=WAFFLE_VIDEOS_NAMESPACE),
+                HLS_PRIMARY_PLAYBACK_ENABLED
+            )
+            hls_primary_playback = waffle_flag.is_enabled(self.location.course_key)
+
+        return hls_primary_playback
 
     def get_html(self):
 
@@ -317,6 +347,7 @@ class VideoModule(VideoFields, VideoTranscriptsMixin, VideoStudentViewHandlers, 
             'streams': self.youtube_streams,
             'sources': sources,
             'poster': poster,
+            'hls_primary_playback_enabled': self.hls_primary_playback_enabled,
             'duration': video_duration,
             # This won't work when we move to data that
             # isn't on the filesystem
