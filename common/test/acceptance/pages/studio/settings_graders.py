@@ -5,6 +5,7 @@ Course Grading Settings page.
 from common.test.acceptance.pages.studio.settings import SettingsPage
 from common.test.acceptance.pages.studio.utils import press_the_notification_button
 from common.test.acceptance.pages.common.utils import click_css
+from selenium.webdriver import ActionChains
 from bok_choy.promise import BrokenPromise
 
 
@@ -67,6 +68,26 @@ class GradingPage(SettingsPage):
         while len(self.q(css='.remove-button')) > 0:
             self.remove_grade()
 
+    def drag_and_drop_grade(self):
+        """
+        Drag and drop grade range.
+        """
+        self.wait_for_element_visibility(self.grade_ranges, "Grades ranges are visible")
+        action = ActionChains(self.browser)
+        moveable_css = self.q(css='.ui-resizable-e').results[0]
+        action.drag_and_drop_by_offset(moveable_css, 100, 0).perform()
+
+    def change_assignment_name(self, old_name, new_name):
+        """
+        Changes the assignment name.
+        :param old_name: The assignment type name which is to be changed.
+        :param new_name: New name of the assignment.
+        """
+        grading_asignment_types = '#course-grading-assignment-name'
+        self.wait_for_element_visibility(grading_asignment_types, 'Assignment type fields visible')
+        self.q(css=grading_asignment_types).filter(
+            lambda el: el.get_attribute('value') == old_name).fill(new_name)
+
     @property
     def grade_letters(self):
         """
@@ -103,6 +124,15 @@ class GradingPage(SettingsPage):
         """
         self.q(css='.add-grading-data').click()
         self.save_changes()
+
+    @property
+    def grades_range(self):
+        """
+        Get ranges of all the grades.
+        Returns: A list containing ranges of all the grades
+        """
+        self.wait_for_element_visibility('.range', 'Ranges are visible')
+        return self.q(css='.range').text
 
     def fill_assignment_type_fields(
             self,

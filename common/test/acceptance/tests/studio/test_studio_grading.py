@@ -3,6 +3,7 @@ Acceptance tests for grade settings in Studio.
 """
 from common.test.acceptance.pages.studio.settings_graders import GradingPage
 from common.test.acceptance.tests.studio.base_studio_test import StudioCourseTest
+from common.test.acceptance.pages.studio.overview import CourseOutlinePage
 from common.test.acceptance.fixtures.course import XBlockFixtureDesc
 
 
@@ -93,3 +94,68 @@ class GradingPageTest(StudioCourseTest):
         self.grading_page.save()
         grades_alphabets = self.grading_page.grade_letters
         self.assertEqual(grades_alphabets, ['A', 'B', 'F'])
+
+    def test_staff_can_delete_grade_range(self):
+        """
+        Scenario: Users can delete grading ranges
+            Given I have opened a new course in Studio
+            And I am viewing the grading settings
+            When I add "1" new grade
+            And I delete a grade
+            Then I see I now have "2" grades
+        """
+        length = self.grading_page.total_number_of_grades
+        self.grading_page.click_add_grade()
+        self.assertTrue(self.grading_page.is_grade_added(length))
+        self.grading_page.save()
+        total_number_of_grades = self.grading_page.total_number_of_grades
+        self.assertEqual(total_number_of_grades, 3)
+        self.grading_page.remove_grades(1)
+        total_number_of_grades = self.grading_page.total_number_of_grades
+        self.assertEqual(total_number_of_grades, 2)
+
+    def test_staff_can_move_grading_ranges(self):
+        """
+        Scenario: Users can move grading ranges
+            Given I have opened a new course in Studio
+            And I am viewing the grading settings
+            When I move a grading section
+            Then I see that the grade range has changed
+        """
+        grade_ranges = self.grading_page.grades_range
+        self.assertIn('0-50', grade_ranges)
+        self.grading_page.drag_and_drop_grade()
+        grade_ranges = self.grading_page.grades_range
+        self.assertIn(
+            '0-3',
+            grade_ranges,
+            'expected range: 0-3, not found in grade ranges:{}'.format(grade_ranges)
+        )
+
+    def test_modify_assignment_type(self):
+        """
+        Scenario: Users can modify Assignment types
+            Given I have populated a new course in Studio
+            And I am viewing the grading settings
+            When I change assignment type "Homework" to "New Type"
+            And I press the "Save" notification button
+            And I go back to the main course page
+            Then I do see the assignment name "New Type"
+            And I do not see the assignment name "Homework"
+        """
+        self.grading_page.change_assignment_name('Homework', 'New Type')
+        self.grading_page.save()
+        course_outline_page = CourseOutlinePage(
+            self.browser,
+            self.course_info['org'],
+            self.course_info['number'],
+            self.course_info['run']
+        )
+        course_outline_page.visit()
+        subsection = course_outline_page.section('Test Section').subsection('Test Subsection')
+        modal = subsection.edit()
+        # Set new values
+        modal.policy = 'New Type'
+        modal.save()
+        grade = course_outline_page.policy
+        self.assertEqual(grade, 'New Type')
