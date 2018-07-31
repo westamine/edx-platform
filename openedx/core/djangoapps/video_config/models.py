@@ -186,3 +186,57 @@ class MigrationEnqueuedCourse(TimeStampedModel):
         return u'MigrationEnqueuedCourse: ID={course_id}, Run={command_run}'.format(
             course_id=self.course_id, command_run=self.command_run
         )
+
+
+class VideoThumbnailSetting(ConfigurationModel):
+    """
+    Arguments for the Video Thumbnail management command
+    """
+    def __unicode__(self):
+        return (
+            "[VideoThumbnailSetting] Videos {videos} with update if already present as {force}"
+            " and commit as {commit}"
+        ).format(
+            videos='ALL' if self.all_videos else self.video_ids,
+            force=self.force_update,
+            commit=self.commit
+        )
+    force_update = BooleanField(
+        default=False,
+        help_text="Flag to force update thumbnails for the requested videos, overwrite if already present."
+    )
+    command_run = PositiveIntegerField(default=0)
+    batch_size = PositiveIntegerField(default=0)
+    commit = BooleanField(
+        default=False,
+        help_text="Dry-run or commit."
+    )
+    all_videos = BooleanField(
+        default=False,
+        help_text="Process all videos."
+    )
+    video_ids = TextField(
+        blank=False,
+        help_text="Whitespace-separated list of video ids for which to migrate transcripts."
+    )
+
+    def increment_run(self):
+        """
+        Increments the run which indicates the management command run count.
+        """
+        self.command_run += 1
+        self.save()
+        return self.command_run
+
+
+class UpdatedVideos(TimeStampedModel):
+    """
+    Temporary model to persist the video IDs which have been enqueued for updation of video thumbnails.
+    """
+    video_id = CourseKeyField(db_index=True, primary_key=True, max_length=255)
+    command_run = PositiveIntegerField(default=0)
+
+    def __unicode__(self):
+        return u'UpdatedVideos: ID={video_id}, Run={command_run}'.format(
+            video_id=self.video_id, command_run=self.command_run
+        )

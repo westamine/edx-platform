@@ -13,6 +13,7 @@ from openedx.core.djangoapps.video_config.models import (
     CourseHLSPlaybackEnabledFlag, HLSPlaybackEnabledFlag,
     CourseVideoTranscriptEnabledFlag, VideoTranscriptEnabledFlag,
     TranscriptMigrationSetting, MigrationEnqueuedCourse,
+    VideoThumbnailSetting, UpdatedVideos,
 )
 
 
@@ -62,6 +63,18 @@ class MigrationEnqueuedCourseAdmin(admin.ModelAdmin):
     search_fields = ['course_id', 'command_run']
 
 
+class UpdatedVideosAdmin(admin.ModelAdmin):
+    """
+    Read-only list/search view of the videos whose thumbnails have been updated.
+    """
+    list_display = [
+        'video_id',
+        'command_run',
+    ]
+
+    search_fields = ['video_id', 'command_run']
+
+
 admin.site.register(HLSPlaybackEnabledFlag, ConfigurationModelAdmin)
 admin.site.register(CourseHLSPlaybackEnabledFlag, CourseHLSPlaybackEnabledFlagAdmin)
 
@@ -69,3 +82,5 @@ admin.site.register(VideoTranscriptEnabledFlag, ConfigurationModelAdmin)
 admin.site.register(CourseVideoTranscriptEnabledFlag, CourseVideoTranscriptEnabledFlagAdmin)
 admin.site.register(TranscriptMigrationSetting, ConfigurationModelAdmin)
 admin.site.register(MigrationEnqueuedCourse, MigrationEnqueuedCourseAdmin)
+admin.site.register(VideoThumbnailSetting, ConfigurationModelAdmin)
+admin.site.register(UpdatedVideos, UpdatedVideosAdmin)
