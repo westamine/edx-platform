@@ -4,6 +4,7 @@ Views related to the video upload feature
 import csv
 import json
 import logging
+import requests
 from contextlib import closing
 from datetime import datetime, timedelta
 from pytz import UTC
@@ -835,3 +836,23 @@ def is_status_update_request(request_data):
     Returns True if `request_data` contains status update else False.
     """
     return any('status' in update for update in request_data)
+
+
+def download_youtube_video_thumbnail(youtube_id):
+    """
+    Download highest resoultion video thumbnail available from youtube.
+    """
+    thumbnail_content = None
+    # Download highest resoultion thumbnail available.
+    youtube_resolutions = ['maxresdefault', 'sddefault', 'hqdefault', '0']
+    for res in youtube_resolutions:
+        thumbnail_url = 'https://img.youtube.com/vi/{youtube_id}/{res}.jpg'.format(
+            youtube_id=youtube_id,
+            res=res
+        )
+        response = requests.get(thumbnail_url)
+        if response.status_code == requests.codes.ok:
+            thumbnail_content = response.content
+            # If best available resolution is find, skip looking for lower resolutions.
+            break
+    return thumbnail_content

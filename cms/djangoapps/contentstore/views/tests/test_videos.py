@@ -5,6 +5,7 @@ Unit tests for video-related REST APIs.
 import csv
 import json
 import re
+import requests
 from datetime import datetime
 from functools import wraps
 from StringIO import StringIO
@@ -30,6 +31,8 @@ from contentstore.utils import reverse_course_url
 from contentstore.views.videos import (
     _get_default_video_image_url,
     validate_video_image,
+    download_youtube_video_thumbnail,
+    upload_video_thumbnail_to_s3,
     VIDEO_IMAGE_UPLOAD_ENABLED,
     WAFFLE_SWITCHES,
     TranscriptProvider
@@ -752,6 +755,73 @@ class VideoImageTestCase(VideoUploadTestBase, CourseTestCase):
         video_image_upload_url = self.get_url_for_course_key(self.course.id, {'edx_video_id': 'test_vid_id'})
         response = self.client.post(video_image_upload_url, {'file': 'dummy_file'}, format='multipart')
         self.assertEqual(response.status_code, 404)
+
+    @override_settings(AWS_ACCESS_KEY_ID='test_key_id', AWS_SECRET_ACCESS_KEY='test_secret')
+    @patch('requests.get')
+    @ddt.data(
+        (
+            {
+                'maxresdefault': 'maxresdefault-result-image-content',
+                'sddefault': 'sddefault-result-image-content',
+                'hqdefault': 'hqdefault-result-image-content',
+                '0': 'default-result-image-content'
+            },
+            'maxresdefault-result-image-content'
+        ),
+        (
+            {
+                'maxresdefault': '',
+                'sddefault': 'sddefault-result-image-content',
+                'hqdefault': 'hqdefault-result-image-content',
+                '0': 'default-result-image-content'
+            },
+            'sddefault-result-image-content'
+        ),
+        (
+            {
+                'maxresdefault': '',
+                'sddefault': '',
+                'hqdefault': 'hqdefault-result-image-content',
+                '0': 'default-result-image-content'
+            },
+            'hqdefault-result-image-content'
+        ),
+        (
+            {
+                'maxresdefault': '',
+                'sddefault': '',
+                'hqdefault': '',
+                '0': 'default-result-image-content'
+            },
+            'default-result-image-content'
+        ),
+    )
+    @ddt.unpack
+    def test_youtube_video_thumbnail_download(
+        self,
+        thumbnail_content_data,
+        expected_thumbnail_content,
+        mocked_request
+    ):
+        """
+        Test that we get highest resolution video thumbnail available from youtube.
+        """
+        def mocked_responses(resolutions):
+            mocked_responses = []
+            for resolution in ['maxresdefault', 'sddefault', 'hqdefault', '0']:
+                mocked_value = resolutions[resolution]
+                mocked_response = requests.Response()
+                mocked_response.status_code = requests.codes.ok if mocked_value else requests.codes.not_found
+                mocked_response._content = mocked_value
+                mocked_response.headers = {'content-type': 'image/jpeg'}
+                mocked_responses.append(mocked_response)
+            return mocked_responses
+
+        mocked_request.side_effect = mocked_responses(thumbnail_content_data)
+        thumbnail_content, thumbnail_type = download_youtube_video_thumbnail('test-yt-id')
+
+        # Verify that we get the expected thumbnail content.
+        self.assertEqual(thumbnail_content, expected_thumbnail_content)
 
     @override_switch(VIDEO_IMAGE_UPLOAD_ENABLED, True)
     def test_video_image(self):
