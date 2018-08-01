@@ -378,6 +378,7 @@ function(VideoPlayer, i18n, moment, _) {
                 showCaptions: isBoolean,
                 autoplay: isBoolean,
                 autohideHtml5: isBoolean,
+                hls_primary_playback_enabled: isBoolean,
                 autoAdvance: function(value) {
                     var shouldAutoAdvance = storage.getItem('auto_advance');
                     if (_.isUndefined(shouldAutoAdvance)) {

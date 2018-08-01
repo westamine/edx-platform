@@ -4,8 +4,8 @@
     'use strict';
 
     require(
-['video/03_video_player.js', 'hls', 'underscore'],
-function(VideoPlayer, HLS, _) {
+['video/03_video_player.js', 'video/01_initialize.js', 'hls', 'underscore'],
+function(VideoPlayer, Initialize, HLS, _) {
     describe('VideoPlayer', function() {
         var STATUS = window.STATUS,
             state,
@@ -1063,6 +1063,34 @@ function(VideoPlayer, HLS, _) {
                 }).then(function() {
                     expect($(playButtonOverlaySelector)).not.toHaveClass('is-hidden');
                 }).always(done);
+            });
+        });
+
+        describe('HLS Primary Playback', function() {
+            beforeEach(function() {
+                spyOn(window.YT, 'Player').and.callThrough();
+            });
+
+            afterEach(function() {
+                YT.Player.calls.reset();
+            });
+
+            it('is defaults to false', function() {
+                state = jasmine.initializePlayer('video_all.html', {
+                    streams: "0.5:7tqY6eQzVhE,1.0:cogebirgzzM,1.5:abcdefghijkl"
+                });
+                expect(state.config.hls_primary_playback_enabled).toBeFalsy();
+                expect(YT.Player).toHaveBeenCalled();
+                expect(state.videoPlayer.player.hls).toBeUndefined();
+            });
+
+            it('does not load youtube if flag is enabled', function() {
+                state = jasmine.initializePlayer('video_all.html', {
+                    hls_primary_playback_enabled: true
+                });
+                expect(state.config.hls_primary_playback_enabled).toBeTruthy();
+                expect(YT.Player).not.toHaveBeenCalled();
+                expect(state.videoPlayer.player.hls).toBeDefined();
             });
         });
     });
