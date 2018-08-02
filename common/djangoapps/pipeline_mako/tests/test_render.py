@@ -68,9 +68,9 @@ class PipelineRenderTest(TestCase):
         call_task('pavelib.assets.update_assets', args=('lms', '--settings=test', '--themes=no'))
 
     @skipUnless(settings.ROOT_URLCONF == 'lms.urls', 'Test only valid in LMS')
-    @ddt.data(
+    @ddt.data(sorted(
         (True,),
-        (False,),
+        (False,))
     )
     def test_compressed_css(self, pipeline_enabled):
         """
