@@ -1,7 +1,6 @@
 import argparse
 import logging
 import time
-import os
 
 import boto3
 from botocore.exceptions import ClientError
@@ -105,8 +104,6 @@ class PytestContainerManager():
         logger.info("Successfully booted up {} tasks.".format(number_of_tasks))
 
         # Generate .txt files containing IP addresses and task arns
-        if not os.path.exists("xdist_files"):
-            os.makedirs("xdist_files")
         ip_list_string = ",".join(ip_addresses)
         logger.info("Task IP list: {}".format(ip_list_string))
         ip_list_file = open("pytest_task_ips.txt", "w")
