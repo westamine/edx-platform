@@ -47,7 +47,7 @@ from xmodule.video_module.transcripts_utils import Transcript, save_to_store, su
 from xmodule.video_module.video_module import (
     EXPORT_IMPORT_COURSE_DIR,
     EXPORT_IMPORT_STATIC_DIR,
-    HLS_PRIMARY_PLAYBACK_ENABLED,
+    DEPRECATE_YOUTUBE,
     WAFFLE_VIDEOS_NAMESPACE,
     CourseWaffleFlag,
     WaffleFlagNamespace
@@ -63,8 +63,8 @@ MODULESTORES = {
     ModuleStoreEnum.Type.split: TEST_DATA_SPLIT_MODULESTORE,
 }
 
-HLS_PRIMARY_PLAYBACK_ENABLED_SWITCH = '{}.{}'.format(WAFFLE_VIDEOS_NAMESPACE, HLS_PRIMARY_PLAYBACK_ENABLED)
-HLS_PRIMARY_PLAYBACK_ENABLED_FLAG = HLS_PRIMARY_PLAYBACK_ENABLED_SWITCH
+DEPRECATE_YOUTUBE_SWITCH = '{}.{}'.format(WAFFLE_VIDEOS_NAMESPACE, DEPRECATE_YOUTUBE)
+DEPRECATE_YOUTUBE_FLAG = DEPRECATE_YOUTUBE_SWITCH
 
 TRANSCRIPT_FILE_SRT_DATA = u"""
 1
@@ -107,7 +107,7 @@ class TestVideoYouTube(TestVideo):
                 'sources': sources,
                 'duration': None,
                 'poster': None,
-                'hls_primary_playback_enabled': False,
+                'deprecateYoutube': False,
                 'captionDataDir': None,
                 'showCaptions': 'true',
                 'generalSpeed': 1.0,
@@ -189,7 +189,7 @@ class TestVideoNonYouTube(TestVideo):
                 'sources': sources,
                 'duration': None,
                 'poster': None,
-                'hls_primary_playback_enabled': False,
+                'deprecateYoutube': False,
                 'captionDataDir': None,
                 'showCaptions': 'true',
                 'generalSpeed': 1.0,
@@ -248,7 +248,7 @@ class TestGetHtmlMethod(BaseTestXmodule):
             'sources': '[]',
             'duration': 111.0,
             'poster': None,
-            'hls_primary_playback_enabled': False,
+            'deprecateYoutube': False,
             'captionDataDir': None,
             'showCaptions': 'true',
             'generalSpeed': 1.0,
@@ -1006,31 +1006,31 @@ class TestGetHtmlMethod(BaseTestXmodule):
             'hls_playback_enabled': False,
             'hls_primary_playback_switch_enabled': True,
             'hls_primary_playback_course_flag_enabled': True,
-            'expected_hls_primary_playback_enabled': 'false',
+            'expected_deprecate_youtube': 'false',
         },
         {
             'hls_playback_enabled': True,
             'hls_primary_playback_switch_enabled': True,
             'hls_primary_playback_course_flag_enabled': True,
-            'expected_hls_primary_playback_enabled': 'true',
+            'expected_deprecate_youtube': 'true',
         },
         {
             'hls_playback_enabled': True,
             'hls_primary_playback_switch_enabled': False,
             'hls_primary_playback_course_flag_enabled': True,
-            'expected_hls_primary_playback_enabled': 'true',
+            'expected_deprecate_youtube': 'true',
         },
         {
             'hls_playback_enabled': True,
             'hls_primary_playback_switch_enabled': False,
             'hls_primary_playback_course_flag_enabled': False,
-            'expected_hls_primary_playback_enabled': 'false',
+            'expected_deprecate_youtube': 'false',
         },
         {
             'hls_playback_enabled': True,
             'hls_primary_playback_switch_enabled': True,
             'hls_primary_playback_course_flag_enabled': False,
-            'expected_hls_primary_playback_enabled': 'true',
+            'expected_deprecate_youtube': 'true',
         },
     )
     @ddt.unpack
@@ -1039,10 +1039,10 @@ class TestGetHtmlMethod(BaseTestXmodule):
         hls_playback_enabled,
         hls_primary_playback_switch_enabled,
         hls_primary_playback_course_flag_enabled,
-        expected_hls_primary_playback_enabled,
+        expected_deprecate_youtube,
     ):
         """
-        Verify that `hls_primary_playback_enabled` is set correctly.
+        Verify that `deprecateYoutube` is set correctly.
         """
         with patch('xmodule.video_module.video_module.HLSPlaybackEnabledFlag.feature_enabled') as feature_enabled:
             feature_enabled.return_value = hls_playback_enabled
@@ -1050,13 +1050,13 @@ class TestGetHtmlMethod(BaseTestXmodule):
             self.initialize_module(data=video_xml)
             waffle_flag = CourseWaffleFlag(
                 WaffleFlagNamespace(name=WAFFLE_VIDEOS_NAMESPACE),
-                HLS_PRIMARY_PLAYBACK_ENABLED
+                DEPRECATE_YOUTUBE
             )
-            with override_switch(HLS_PRIMARY_PLAYBACK_ENABLED_SWITCH, active=hls_primary_playback_switch_enabled), \
-                 override_waffle_flag(waffle_flag, active=hls_primary_playback_course_flag_enabled):
+            with override_switch(DEPRECATE_YOUTUBE_SWITCH, active=hls_primary_playback_switch_enabled), \
+                    override_waffle_flag(waffle_flag, active=hls_primary_playback_course_flag_enabled):
                 context = self.item_descriptor.render(STUDENT_VIEW).content
                 self.assertIn(
-                    '"hls_primary_playback_enabled": {}'.format(expected_hls_primary_playback_enabled),
+                    '"deprecateYoutube": {}'.format(expected_deprecate_youtube),
                     context
                 )
 
@@ -2138,7 +2138,7 @@ class TestVideoWithBumper(TestVideo):
                 'streams': '0.75:jNCf2gIqpeE,1.00:ZwkTiUPN0mg,1.25:rsq9auxASqI,1.50:kMyNdzVHHgg',
                 'sources': sources,
                 'poster': None,
-                'hls_primary_playback_enabled': False,
+                'deprecateYoutube': False,
                 'duration': None,
                 'captionDataDir': None,
                 'showCaptions': 'true',
@@ -2212,7 +2212,7 @@ class TestAutoAdvanceVideo(TestVideo):
                 'sources': [u'example.mp4', u'example.webm'],
                 'duration': None,
                 'poster': None,
-                'hls_primary_playback_enabled': False,
+                'deprecateYoutube': False,
                 'captionDataDir': None,
                 'showCaptions': 'true',
                 'generalSpeed': 1.0,

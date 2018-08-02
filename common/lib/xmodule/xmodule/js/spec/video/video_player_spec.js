@@ -4,8 +4,8 @@
     'use strict';
 
     require(
-['video/03_video_player.js', 'video/01_initialize.js', 'hls', 'underscore'],
-function(VideoPlayer, Initialize, HLS, _) {
+['video/03_video_player.js', 'hls', 'underscore'],
+function(VideoPlayer, HLS, _) {
     describe('VideoPlayer', function() {
         var STATUS = window.STATUS,
             state,
@@ -1075,20 +1075,22 @@ function(VideoPlayer, Initialize, HLS, _) {
                 YT.Player.calls.reset();
             });
 
-            it('is defaults to false', function() {
+            it('loads youtube if flag is disabled', function() {
                 state = jasmine.initializePlayer('video_all.html', {
-                    streams: "0.5:7tqY6eQzVhE,1.0:cogebirgzzM,1.5:abcdefghijkl"
+                    deprecateYoutube: false,
+                    streams: '0.5:7tqY6eQzVhE,1.0:cogebirgzzM,1.5:abcdefghijkl'
                 });
-                expect(state.config.hls_primary_playback_enabled).toBeFalsy();
+                expect(state.config.deprecateYoutube).toBeFalsy();
                 expect(YT.Player).toHaveBeenCalled();
                 expect(state.videoPlayer.player.hls).toBeUndefined();
             });
 
             it('does not load youtube if flag is enabled', function() {
                 state = jasmine.initializePlayer('video_all.html', {
-                    hls_primary_playback_enabled: true
+                    deprecateYoutube: true,
+                    sources: ['/base/fixtures/test.mp4', '/base/fixtures/test.webm', '/base/fixtures/hls/hls.m3u8']
                 });
-                expect(state.config.hls_primary_playback_enabled).toBeTruthy();
+                expect(state.config.deprecateYoutube).toBeTruthy();
                 expect(YT.Player).not.toHaveBeenCalled();
                 expect(state.videoPlayer.player.hls).toBeDefined();
             });

@@ -105,7 +105,7 @@ WAFFLE_VIDEOS_NAMESPACE = 'videos'
 WAFFLE_SWITCHES = WaffleSwitchNamespace(name=WAFFLE_VIDEOS_NAMESPACE)
 
 # Waffle switch to enable/disable hls as primary playback
-HLS_PRIMARY_PLAYBACK_ENABLED = 'hls_primary_playback_enabled'
+DEPRECATE_YOUTUBE = 'deprecate_youtube'
 
 EXPORT_IMPORT_COURSE_DIR = u'course'
 EXPORT_IMPORT_STATIC_DIR = u'static'
@@ -191,26 +191,26 @@ class VideoModule(VideoFields, VideoTranscriptsMixin, VideoStudentViewHandlers, 
         return track_url, transcript_language, sorted_languages
 
     @cached_property
-    def hls_primary_playback_enabled(self):
+    def deprecate_youtube_enabled(self):
         """
         Return True if hls as primary playback enabled else False
         """
-        hls_primary_playback = False
+        deprecate_youtube = False
 
         # if `hls` playback itself is disabled then when can't move further
         if not HLSPlaybackEnabledFlag.feature_enabled(self.location.course_key):
             return False
 
-        if WAFFLE_SWITCHES.is_enabled(HLS_PRIMARY_PLAYBACK_ENABLED):
-            hls_primary_playback = True
+        if WAFFLE_SWITCHES.is_enabled(DEPRECATE_YOUTUBE):
+            deprecate_youtube = True
         else:
             waffle_flag = CourseWaffleFlag(
                 WaffleFlagNamespace(name=WAFFLE_VIDEOS_NAMESPACE),
-                HLS_PRIMARY_PLAYBACK_ENABLED
+                DEPRECATE_YOUTUBE
             )
-            hls_primary_playback = waffle_flag.is_enabled(self.location.course_key)
+            deprecate_youtube = waffle_flag.is_enabled(self.location.course_key)
 
-        return hls_primary_playback
+        return deprecate_youtube
 
     def get_html(self):
 
@@ -347,7 +347,7 @@ class VideoModule(VideoFields, VideoTranscriptsMixin, VideoStudentViewHandlers, 
             'streams': self.youtube_streams,
             'sources': sources,
             'poster': poster,
-            'hls_primary_playback_enabled': self.hls_primary_playback_enabled,
+            'deprecateYoutube': self.deprecate_youtube_enabled,
             'duration': video_duration,
             # This won't work when we move to data that
             # isn't on the filesystem
